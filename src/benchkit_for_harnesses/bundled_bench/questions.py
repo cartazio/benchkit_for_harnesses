@@ -15,7 +15,6 @@ MMLU is ideal because:
 from __future__ import annotations
 
 import csv
-import hashlib
 import random
 from collections import defaultdict
 from pathlib import Path
@@ -106,7 +105,7 @@ def load_mmlu_from_hf(
     if subjects is None:
         subjects = MMLU_SUBJECTS
 
-    questions = []
+    questions: list[Question] = []
     for subj in subjects:
         try:
             ds = load_dataset("cais/mmlu", subj, split=split)
@@ -147,7 +146,7 @@ def load_mmlu_from_csv(
     if subjects is None:
         subjects = MMLU_SUBJECTS
 
-    questions = []
+    questions: list[Question] = []
     for subj in subjects:
         csv_path = data_dir / split / f"{subj}_{split}.csv"
         if not csv_path.exists():
@@ -186,7 +185,7 @@ def load_synthetic(n: int = 100) -> list[Question]:
     Generate simple synthetic questions for harness validation.
     These have unambiguous answers for testing scoring logic.
     """
-    questions = []
+    questions: list[Question] = []
 
     # Arithmetic
     rng = random.Random(42)
@@ -281,7 +280,7 @@ def sample_balanced(
 
     # Round-robin across domains
     domains = sorted(by_domain.keys())
-    result = []
+    result: list[Question] = []
     idx = {d: 0 for d in domains}
 
     while len(result) < n:

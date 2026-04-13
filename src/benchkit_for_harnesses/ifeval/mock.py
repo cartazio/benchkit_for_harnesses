@@ -22,7 +22,7 @@ def mock_response(prompt: str, system_prompt: str, seed: int = 42) -> str:
         base_success_rate -= 0.10
     
     # Extract what the prompt is asking for (very crude)
-    response_parts = []
+    response_parts: list[str] = []
     
     if "no comma" in prompt.lower():
         if rng.random() < base_success_rate:

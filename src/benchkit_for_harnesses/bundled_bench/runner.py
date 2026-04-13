@@ -14,8 +14,6 @@ from benchkit_for_harnesses.api_runner import run_chat, run_completion
 from .harness import (
     Bundle,
     BundleResult,
-    ModelSpec,
-    PromptCondition,
     SYSTEM_PROMPTS,
     TrialConfig,
     format_bundle_prompt,
@@ -81,9 +79,9 @@ async def run_experiment(
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     # Filter out exceptions, log them
-    good = []
+    good: list[BundleResult] = []
     for r in results:
-        if isinstance(r, Exception):
+        if isinstance(r, BaseException):
             print(f"ERROR: {r}")
         else:
             good.append(r)

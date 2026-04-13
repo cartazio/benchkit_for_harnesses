@@ -184,7 +184,7 @@ def evaluate_response(
         (follow_all, follow_list) where follow_list[i] indicates
         whether instruction_ids[i] was followed.
     """
-    follow_list = []
+    follow_list: list[bool] = []
     for instr_id, kw in zip(instruction_ids, kwargs_list):
         follows = check_instruction_following(response, instr_id, kw, prompt)
         follow_list.append(follows)

@@ -23,7 +23,7 @@ def save_jsonl(records: list[dict[str, Any]], path: Path, *, append: bool = True
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     """Load records from JSON lines."""
-    results = []
+    results: list[dict[str, Any]] = []
     with open(path) as f:
         for line in f:
             line = line.strip()

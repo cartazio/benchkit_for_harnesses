@@ -54,10 +54,10 @@ def format_infinitebench(item: Mapping[str, object]) -> tuple[str, str]:
     answer_raw: object = item.get("answer", "")
     if isinstance(answer_raw, list) and answer_raw:
         # Multiple valid answers — join with | for eval_bracketed
-        answers = cast(list[object], answer_raw)
+        answers: list[object] = cast(list[object], answer_raw)
         target = "|".join(str(a).strip() for a in answers)
     else:
-        target = str(answer_raw).strip()
+        target = str(cast(object, answer_raw)).strip()
     return prompt, target
 
 
@@ -79,8 +79,6 @@ def format_longbenchv2(item: Mapping[str, object]) -> tuple[str, str]:
 # --- Answer bracket extraction (shared module) ---
 
 from benchkit_for_harnesses.brackets import (
-    ANSWER_BRACKET_RE,
-    extract_bracketed_answer,
     eval_bracketed,
 )
 

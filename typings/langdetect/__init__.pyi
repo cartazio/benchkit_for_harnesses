@@ -1,0 +1,3 @@
+"""Minimal type stubs for langdetect."""
+
+def detect(text: str) -> str: ...

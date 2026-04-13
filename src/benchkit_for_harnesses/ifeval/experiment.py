@@ -22,11 +22,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from datasets import load_dataset
 
 from benchkit_for_harnesses.archive import make_archive_path, finalize_archive_path
-from benchkit_for_harnesses.harnesses.runner import run_harness
+from benchkit_for_harnesses.harnesses.runner import HarnessType, run_harness
 from benchkit_for_harnesses.results import load_jsonl
 
 from .checkers import evaluate_response
@@ -81,7 +82,7 @@ def run_benchmark(
                 latency_ms = 100
             else:
                 response, latency_ms = run_harness(
-                    harness=harness,
+                    harness=cast(HarnessType, harness),
                     model=model,
                     prompt=prompt,
                     system_prompt=system_prompt,
@@ -149,7 +150,7 @@ def compare_results(baseline_path: Path, treatment_path: Path) -> None:
     baseline = load_jsonl(baseline_path)
     treatment = load_jsonl(treatment_path)
     
-    def compute_stats(results: list[dict]) -> tuple[float, float]:
+    def compute_stats(results: list[dict[str, Any]]) -> tuple[float, float]:
         total_prompts = len(results)
         prompts_all = sum(1 for r in results if r["follow_all"])
         total_instr = sum(len(r["follow_list"]) for r in results)

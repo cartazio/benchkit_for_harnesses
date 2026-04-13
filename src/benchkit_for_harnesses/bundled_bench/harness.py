@@ -31,10 +31,10 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from benchkit_for_harnesses.brackets import extract_bracketed_answers
-from benchkit_for_harnesses.results import clear_results, load_jsonl, save_jsonl
+from benchkit_for_harnesses.results import load_jsonl, save_jsonl
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ def make_bundles(
     qs = list(questions)
     rng.shuffle(qs)
 
-    bundles = []
+    bundles: list[Bundle] = []
     for i in range(0, len(qs) - bundle_size + 1, bundle_size):
         if len(bundles) >= n_bundles:
             break
@@ -188,7 +188,7 @@ def format_bundle_prompt(bundle: Bundle) -> str:
     Format a bundle into a user-facing prompt string.
     For multiple choice, includes choices. For free-form, just the question.
     """
-    parts = []
+    parts: list[str] = []
     for i, q in enumerate(bundle.questions, 1):
         part = f"Question {i}: {q.text}"
         if q.choices:
@@ -214,7 +214,7 @@ def parse_responses(
     Looks for {[{[ ... ]}]} markers to identify answers.
     """
     answers = extract_bracketed_answers(raw_output)
-    results = []
+    results: list[QuestionResult] = []
 
     for i, q in enumerate(bundle.questions):
         if i < len(answers):
@@ -285,7 +285,7 @@ def save_results(results: list[BundleResult], path: Path) -> None:
     save_jsonl(records, path)
 
 
-def load_results(path: Path) -> list[dict]:
+def load_results(path: Path) -> list[dict[str, Any]]:
     """Load results from JSON lines via shared results module."""
     return load_jsonl(path)
 
@@ -294,27 +294,27 @@ def load_results(path: Path) -> list[dict]:
 # Analysis
 # ---------------------------------------------------------------------------
 
-def summarize_results(results: list[dict]) -> dict:
+def summarize_results(results: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Compute summary statistics across results.
     Groups by (model, is_base, condition, bundle_size).
     """
     import statistics
 
-    groups: dict[tuple, list[float]] = defaultdict(list)
-    completion_groups: dict[tuple, list[float]] = defaultdict(list)
-    positional: dict[tuple, list[bool]] = defaultdict(list)
+    groups: dict[tuple[str, bool, str, int], list[float]] = defaultdict(list)
+    completion_groups: dict[tuple[str, bool, str, int], list[float]] = defaultdict(list)
+    positional: dict[tuple[str, bool, str, int, int], list[bool]] = defaultdict(list)
 
     for r in results:
-        key = (r["model"], r["is_base"], r["condition"], r["bundle_size"])
+        key: tuple[str, bool, str, int] = (r["model"], r["is_base"], r["condition"], r["bundle_size"])
         groups[key].append(r["accuracy"])
         completion_groups[key].append(r["completion_rate"])
 
         for q in r["questions"]:
-            pos_key = (*key, q["position"])
+            pos_key: tuple[str, bool, str, int, int] = (*key, q["position"])
             positional[pos_key].append(q["correct"])
 
-    summary = {}
+    summary: dict[str, Any] = {}
     for key, accs in groups.items():
         model, is_base, condition, bsize = key
         comps = completion_groups[key]
@@ -329,7 +329,7 @@ def summarize_results(results: list[dict]) -> dict:
             "mean_completion": statistics.mean(comps),
             "positional_accuracy": {
                 pos: sum(corrects) / len(corrects)
-                for (pos_key, corrects) in positional.items()
+                for pos_key, corrects in positional.items()
                 if pos_key[:4] == key
                 for pos in [pos_key[4]]
             },

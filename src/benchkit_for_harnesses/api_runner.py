@@ -18,37 +18,49 @@ Priority: env var > ModelSpec.api_base > hardcoded default
 from __future__ import annotations
 
 import os
+from typing import Any, Protocol
 
 
-async def run_chat(model: object, prompt: str, system: str) -> str:
+class ModelLike(Protocol):
+    @property
+    def provider(self) -> str: ...
+    @property
+    def api_base(self) -> str | None: ...
+    @property
+    def model_id(self) -> str: ...
+    @property
+    def max_tokens(self) -> int: ...
+
+
+async def run_chat(model: ModelLike, prompt: str, system: str) -> str:
     """Dispatch chat completion to the appropriate provider."""
-    if model.provider == "anthropic":  # type: ignore[union-attr]
+    if model.provider == "anthropic":
         return await _run_anthropic_chat(model, prompt, system)
     return await _run_openai_chat(model, prompt, system)
 
 
-async def _run_openai_chat(model: object, prompt: str, system: str) -> str:
+async def _run_openai_chat(model: ModelLike, prompt: str, system: str) -> str:
     import httpx
 
-    base_url = os.environ.get("OPENAI_BASE_URL") or model.api_base or "https://api.openai.com/v1"  # type: ignore[union-attr]
+    base_url = os.environ.get("OPENAI_BASE_URL") or model.api_base or "https://api.openai.com/v1"
     api_key = os.environ.get("OPENAI_API_KEY", "")
 
-    if model.provider == "together":  # type: ignore[union-attr]
+    if model.provider == "together":
         api_key = os.environ.get("TOGETHER_API_KEY", "")
-        base_url = os.environ.get("TOGETHER_BASE_URL") or model.api_base or "https://api.together.xyz/v1"  # type: ignore[union-attr]
-    elif model.provider == "local":  # type: ignore[union-attr]
+        base_url = os.environ.get("TOGETHER_BASE_URL") or model.api_base or "https://api.together.xyz/v1"
+    elif model.provider == "local":
         api_key = "not-needed"
-        base_url = os.environ.get("LOCAL_BASE_URL") or model.api_base or "http://localhost:8000/v1"  # type: ignore[union-attr]
+        base_url = os.environ.get("LOCAL_BASE_URL") or model.api_base or "http://localhost:8000/v1"
 
-    messages = []
+    messages: list[dict[str, str]] = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    payload = {
-        "model": model.model_id,  # type: ignore[union-attr]
+    payload: dict[str, Any] = {
+        "model": model.model_id,
         "messages": messages,
-        "max_tokens": model.max_tokens,  # type: ignore[union-attr]
+        "max_tokens": model.max_tokens,
         "temperature": 0.0,
     }
 
@@ -62,19 +74,19 @@ async def _run_openai_chat(model: object, prompt: str, system: str) -> str:
             json=payload,
         )
         resp.raise_for_status()
-        data = resp.json()
+        data: dict[str, Any] = resp.json()
         return data["choices"][0]["message"]["content"]
 
 
-async def _run_anthropic_chat(model: object, prompt: str, system: str) -> str:
+async def _run_anthropic_chat(model: ModelLike, prompt: str, system: str) -> str:
     import httpx
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    base_url = os.environ.get("ANTHROPIC_BASE_URL") or model.api_base or "https://api.anthropic.com/v1/messages"  # type: ignore[union-attr]
+    base_url = os.environ.get("ANTHROPIC_BASE_URL") or model.api_base or "https://api.anthropic.com/v1/messages"
 
-    payload = {
-        "model": model.model_id,  # type: ignore[union-attr]
-        "max_tokens": model.max_tokens,  # type: ignore[union-attr]
+    payload: dict[str, Any] = {
+        "model": model.model_id,
+        "max_tokens": model.max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
     if system:
@@ -91,11 +103,11 @@ async def _run_anthropic_chat(model: object, prompt: str, system: str) -> str:
             json=payload,
         )
         resp.raise_for_status()
-        data = resp.json()
+        data: dict[str, Any] = resp.json()
         return data["content"][0]["text"]
 
 
-async def run_completion(model: object, prompt: str, system: str) -> str:
+async def run_completion(model: ModelLike, prompt: str, system: str) -> str:
     """
     Text completion for base (non-instruct) models.
 
@@ -104,12 +116,12 @@ async def run_completion(model: object, prompt: str, system: str) -> str:
     """
     import httpx
 
-    base_url = os.environ.get("TOGETHER_BASE_URL") or model.api_base or "https://api.together.xyz/v1"  # type: ignore[union-attr]
+    base_url = os.environ.get("TOGETHER_BASE_URL") or model.api_base or "https://api.together.xyz/v1"
     api_key = os.environ.get("TOGETHER_API_KEY", "")
 
-    if model.provider == "local":  # type: ignore[union-attr]
+    if model.provider == "local":
         api_key = "not-needed"
-        base_url = os.environ.get("LOCAL_BASE_URL") or model.api_base or "http://localhost:8000/v1"  # type: ignore[union-attr]
+        base_url = os.environ.get("LOCAL_BASE_URL") or model.api_base or "http://localhost:8000/v1"
 
     few_shot = (
         "The following are questions with answers.\n\n"
@@ -125,10 +137,10 @@ async def run_completion(model: object, prompt: str, system: str) -> str:
         full_prompt += system + "\n\n"
     full_prompt += few_shot + prompt + "\n\n"
 
-    payload = {
-        "model": model.model_id,  # type: ignore[union-attr]
+    payload: dict[str, Any] = {
+        "model": model.model_id,
         "prompt": full_prompt,
-        "max_tokens": model.max_tokens,  # type: ignore[union-attr]
+        "max_tokens": model.max_tokens,
         "temperature": 0.0,
         "stop": ["\n\n---"],
     }
@@ -143,5 +155,5 @@ async def run_completion(model: object, prompt: str, system: str) -> str:
             json=payload,
         )
         resp.raise_for_status()
-        data = resp.json()
+        data: dict[str, Any] = resp.json()
         return data["choices"][0]["text"]

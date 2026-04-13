@@ -44,6 +44,8 @@ def run_harness(
     sp_path: str | None = None
     p_path: str | None = None
 
+    start = datetime.now(timezone.utc)
+
     try:
         # Write prompt to temp file — avoids ARG_MAX on long prompts
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as p_f:
@@ -65,7 +67,6 @@ def run_harness(
                 sp_path = sp_f.name
             cmd.extend(["--system-prompt", sp_path])
 
-        start = datetime.now(timezone.utc)
         result = subprocess.run(
             cmd,
             capture_output=True,

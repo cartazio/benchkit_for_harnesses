@@ -30,6 +30,8 @@ from pathlib import Path
 from benchkit_for_harnesses.results import clear_results
 
 from .harness import (
+    BundleResult,
+    ModelSpec,
     PromptCondition,
     TrialConfig,
     make_bundles,
@@ -38,19 +40,19 @@ from .harness import (
     summarize_results,
 )
 from .models import ALL_MODELS, CORE_MODELS, EXTENDED_MODELS, FULL_MODELS
-from .questions import load_synthetic, load_mmlu_from_hf, sample_balanced
+from .questions import load_synthetic, load_mmlu_from_hf
 from .runner import run_experiment
 
 
 def build_configs(
-    models: list,
+    models: list[ModelSpec],
     bundle_sizes: list[int],
     conditions: list[PromptCondition],
     base_only: bool = False,
     seed: int = 42,
 ) -> list[TrialConfig]:
     """Build the full matrix of trial configurations."""
-    configs = []
+    configs: list[TrialConfig] = []
     for model in models:
         if base_only and not model.is_base:
             continue
@@ -216,8 +218,8 @@ def main():
     print(f"RUNNING EXPERIMENT")
     print(f"{'='*60}")
 
-    async def _run_all():
-        all_results = []
+    async def _run_all() -> list[BundleResult]:
+        all_results: list[BundleResult] = []
         for i, config in enumerate(configs):
             base_tag = "[BASE]" if config.model.is_base else "[INST]"
             print(
@@ -264,7 +266,7 @@ def main():
     results_data = load_results(output_path)
     summary = summarize_results(results_data)
 
-    for key, stats in sorted(summary.items()):
+    for _key, stats in sorted(summary.items()):
         base_tag = "[BASE]" if stats["is_base"] else "[INST]"
         print(
             f"  {base_tag} {stats['model']:30s} "
