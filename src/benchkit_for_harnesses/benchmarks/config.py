@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Callable, Mapping, cast
 
@@ -77,34 +76,13 @@ def format_longbenchv2(item: Mapping[str, object]) -> tuple[str, str]:
     return prompt, target
 
 
-# --- Answer bracket extraction ---
+# --- Answer bracket extraction (shared module) ---
 
-ANSWER_BRACKET_RE = re.compile(r'\{\[\{\[\s*(.*?)\s*\]\}\]\}', re.DOTALL)
-
-
-def extract_bracketed_answer(text: str) -> str | None:
-    """Extract first {[{[ ... ]}]} bracketed answer from text."""
-    m = ANSWER_BRACKET_RE.search(text)
-    return m.group(1).strip() if m else None
-
-
-# Evaluation functions
-
-def eval_bracketed(response: str, target: str) -> bool:
-    """
-    Extract bracketed answer and compare to target(s).
-
-    If no bracket found, falls back to direct containment.
-    Handles pipe-separated multi-targets (e.g. InfiniteBench).
-    """
-    extracted = extract_bracketed_answer(response)
-    if extracted is None:
-        # Fallback: direct containment for models that don't follow bracket instructions
-        return target.strip().lower() in response.strip().lower()
-
-    extracted_lower = extracted.lower().strip()
-    targets = [t.strip().lower() for t in target.split("|")]
-    return any(extracted_lower == t or t in extracted_lower for t in targets)
+from benchkit_for_harnesses.brackets import (
+    ANSWER_BRACKET_RE,
+    extract_bracketed_answer,
+    eval_bracketed,
+)
 
 
 # Registry
