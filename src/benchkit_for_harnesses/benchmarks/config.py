@@ -53,17 +53,13 @@ def format_infinitebench(item: Mapping[str, object]) -> tuple[str, str]:
     input_text = item.get("input", "")
     prompt = f"{context}\n\n{input_text}\n\nProvide your answer wrapped in {{[{{[ and ]}}]}} markers."
     answer_raw: object = item.get("answer", "")
-    value_obj: object
-    if isinstance(answer_raw, list):
-        if answer_raw:
-            answers = cast(list[object], answer_raw)
-            value_obj = answers[0]
-        else:
-            value_obj = ""
+    if isinstance(answer_raw, list) and answer_raw:
+        # Multiple valid answers — join with | for eval_bracketed
+        answers = cast(list[object], answer_raw)
+        target = "|".join(str(a).strip() for a in answers)
     else:
-        value_obj = answer_raw
-    target = str(value_obj)
-    return prompt, target.strip()
+        target = str(answer_raw).strip()
+    return prompt, target
 
 
 def format_longbenchv2(item: Mapping[str, object]) -> tuple[str, str]:
