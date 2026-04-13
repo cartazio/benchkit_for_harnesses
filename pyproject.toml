@@ -75,3 +75,4 @@ known-first-party = ["benchkit_for_harnesses"]
 [tool.pyright]
 include = ["src"]
 typeCheckingMode = "strict"
+stubPath = "typings"

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping
+from typing import Callable, Mapping, cast
 
 
 @dataclass
@@ -16,7 +16,7 @@ class BenchmarkConfig:
     hf_path: str
     """HuggingFace dataset path"""
 
-    format_fn: Callable[[Mapping[str, Any]], tuple[str, str]]
+    format_fn: Callable[[Mapping[str, object]], tuple[str, str]]
     """Function to format dataset items to (prompt, target)"""
 
     eval_fn: Callable[[str, str], bool]
@@ -36,7 +36,7 @@ class BenchmarkConfig:
 
 
 # Format functions
-def format_babilong(item: Mapping[str, Any]) -> tuple[str, str]:
+def format_babilong(item: Mapping[str, object]) -> tuple[str, str]:
     """Format BABILong item to (prompt, target)."""
     input_text = item.get("input", "")
     question = item.get("question", "")
@@ -46,20 +46,26 @@ def format_babilong(item: Mapping[str, Any]) -> tuple[str, str]:
     return prompt, target
 
 
-def format_infinitebench(item: Mapping[str, Any]) -> tuple[str, str]:
+def format_infinitebench(item: Mapping[str, object]) -> tuple[str, str]:
     """Format InfiniteBench item to (prompt, target)."""
     context = item.get("context", "")
     input_text = item.get("input", "")
     prompt = f"{context}\n\n{input_text}"
-    answer_raw: Any = item.get("answer", "")
-    if isinstance(answer_raw, list) and answer_raw:
-        target = str(answer_raw[0])
+    answer_raw: object = item.get("answer", "")
+    value_obj: object
+    if isinstance(answer_raw, list):
+        if answer_raw:
+            answers = cast(list[object], answer_raw)
+            value_obj = answers[0]
+        else:
+            value_obj = ""
     else:
-        target = str(answer_raw)
+        value_obj = answer_raw
+    target = str(value_obj)
     return prompt, target.strip()
 
 
-def format_longbenchv2(item: Mapping[str, Any]) -> tuple[str, str]:
+def format_longbenchv2(item: Mapping[str, object]) -> tuple[str, str]:
     """Format LongBench-v2 item to (prompt, target)."""
     prompt = (
         f"{item.get('context', '')}\n\n"

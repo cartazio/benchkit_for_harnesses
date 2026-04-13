@@ -5,21 +5,13 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Protocol, cast
+from typing import Any
 
-from datasets import load_dataset as _load_dataset
+from datasets import DatasetLike, load_dataset
 
 from .benchmarks.config import BENCHMARKS
 from .harnesses.runner import run_harness, HarnessType
 from .archive import make_archive_path, finalize_archive_path
-
-
-class BenchmarkDataset(Protocol):
-	def __len__(self) -> int: ...
-	def __iter__(self) -> Iterable[object]: ...
-	def select(self, indices: Iterable[int]) -> "BenchmarkDataset": ...
-
-LOAD_DATASET: Any = _load_dataset
 
 __all__ = ["run_benchmark_batch", "BenchmarkResult"]
 
@@ -86,9 +78,9 @@ def run_benchmark_batch(
 
     # Load dataset
     if config.split_is_task and task:
-        dataset = cast(BenchmarkDataset, LOAD_DATASET(config.hf_path, split=task))
+        dataset: DatasetLike = load_dataset(config.hf_path, split=task)
     else:
-        dataset = cast(BenchmarkDataset, LOAD_DATASET(config.hf_path, split=config.default_split))
+        dataset = load_dataset(config.hf_path, split=config.default_split)
 
     # Filter by limit
     if limit:
@@ -96,8 +88,7 @@ def run_benchmark_batch(
 
     # Run benchmark
     for idx, item in enumerate(dataset):
-        row = cast(Mapping[str, Any], item)
-        prompt, target = config.format_fn(row)
+        prompt, target = config.format_fn(item)
         response, latency_ms = run_harness(
             harness=harness,
             model=model,
