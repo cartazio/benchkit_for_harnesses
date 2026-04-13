@@ -7,7 +7,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
-from datasets import DatasetLike, load_dataset
+from datasets import load_dataset  # type: ignore[import-untyped]
 
 from .benchmarks.config import BENCHMARKS
 from .harnesses.runner import run_harness, HarnessType
@@ -78,7 +78,12 @@ def run_benchmark_batch(
 
     # Load dataset
     if config.split_is_task and task:
-        dataset: DatasetLike = load_dataset(config.hf_path, split=task)
+        if config.lengths and length:
+            # BABILong: config=length, split=task
+            dataset = load_dataset(config.hf_path, length, split=task)  # type: ignore[assignment]
+        else:
+            # InfiniteBench: split=task only
+            dataset = load_dataset(config.hf_path, split=task)  # type: ignore[assignment]
     else:
         dataset = load_dataset(config.hf_path, split=config.default_split)
 
