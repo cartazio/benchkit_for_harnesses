@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "benchkit-for-harnesses"
+version = "0.1.0"
+description = "Unified benchmarking toolkit for ohp/punkin CLI harnesses"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Carter Schonwald", email = "carter@example.com" }
+]
+keywords = [
+    "benchmarking",
+    "harness",
+    "llm",
+    "long-context",
+    "instruction-tuning",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "datasets>=2.14.0",
+    "huggingface-hub>=0.16.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "pyright>=1.1.300",
+    "ipython>=8.0",
+]
+
+[project.scripts]
+benchkit = "benchkit_for_harnesses.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/benchkit_for_harnesses"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # line too long, handled by black
+
+[tool.ruff.isort]
+known-first-party = ["benchkit_for_harnesses"]
+
+[tool.pyright]
+include = ["src"]
+typeCheckingMode = "strict"
