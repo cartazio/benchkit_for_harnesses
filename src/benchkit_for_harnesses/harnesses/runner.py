@@ -1,8 +1,15 @@
-"""CLI harness runner for ohp/punkin."""
+"""CLI harness runner for ohp/punkin.
+
+Uses temp files for prompt and system prompt to avoid ARG_MAX limits
+on long-context benchmarks. ohp's --system-prompt flag auto-resolves
+file paths, and @file syntax passes file content as the user message.
+"""
 
 from __future__ import annotations
 
+import os
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -20,35 +27,45 @@ def run_harness(
     """
     Run prompt through CLI harness, return (response, latency_ms).
 
+    Writes prompt and system prompt to temp files to avoid OS ARG_MAX
+    limits (macOS ~256KB) on long-context benchmarks where prompts can
+    exceed 100K characters.
+
     Args:
         harness: CLI command (ohp or punkin)
         model: Model identifier
         prompt: User prompt
-        system_prompt: System prompt override (if provided, used with --system-prompt flag)
+        system_prompt: System prompt override
         timeout_sec: Timeout in seconds
 
     Returns:
         Tuple of (response_text, latency_milliseconds)
-
-    Raises:
-        FileNotFoundError: If harness binary not found in PATH
-        subprocess.TimeoutExpired: If execution exceeds timeout_sec
     """
-    cmd = [
-        harness,
-        "-p",
-        "--no-session",
-        "--model",
-        model,
-    ]
+    sp_path: str | None = None
+    p_path: str | None = None
 
-    if system_prompt:
-        cmd.extend(["--system-prompt", system_prompt])
-
-    cmd.append(prompt)
-
-    start = datetime.now(timezone.utc)
     try:
+        # Write prompt to temp file — avoids ARG_MAX on long prompts
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as p_f:
+            p_f.write(prompt)
+            p_path = p_f.name
+
+        cmd = [
+            harness,
+            "-p",
+            "--no-session",
+            "--model", model,
+            f"@{p_path}",
+        ]
+
+        # Write system prompt to temp file — ohp resolves file paths on --system-prompt
+        if system_prompt:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as sp_f:
+                sp_f.write(system_prompt)
+                sp_path = sp_f.name
+            cmd.extend(["--system-prompt", sp_path])
+
+        start = datetime.now(timezone.utc)
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -62,6 +79,13 @@ def run_harness(
         response = "[TIMEOUT]"
     except FileNotFoundError:
         response = f"[ERROR] Harness '{harness}' not found in PATH"
+    finally:
+        for path in (p_path, sp_path):
+            if path:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
 
     elapsed_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
     return response, elapsed_ms
