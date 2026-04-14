@@ -124,7 +124,7 @@ def run_benchmark_batch(
         output_dir = Path(output_dir)
         output_path = make_archive_path(
             output_dir,
-            f"{benchmark_name}_{harness}_{model}",
+            f"{benchmark_name}_{harness}_{model.replace('/', '_')}",
             extension="jsonl",
         )
 

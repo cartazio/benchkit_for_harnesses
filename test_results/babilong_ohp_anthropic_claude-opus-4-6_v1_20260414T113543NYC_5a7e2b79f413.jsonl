@@ -1,0 +1,3 @@
+{"idx": 0, "benchmark": "babilong", "task": "qa1", "length": "0k", "model": "anthropic/claude-opus-4-6", "harness": "ohp", "prompt_chars": 182, "target": "bathroom", "response": "{[{[ bathroom ]}]}", "correct": true, "latency_ms": 4134, "system_prompt": null}
+{"idx": 1, "benchmark": "babilong", "task": "qa1", "length": "0k", "model": "anthropic/claude-opus-4-6", "harness": "ohp", "prompt_chars": 364, "target": "kitchen", "response": "{[{[kitchen]}]}", "correct": true, "latency_ms": 3899, "system_prompt": null}
+{"idx": 2, "benchmark": "babilong", "task": "qa1", "length": "0k", "model": "anthropic/claude-opus-4-6", "harness": "ohp", "prompt_chars": 119, "target": "kitchen", "response": "{[{[ kitchen ]}]}", "correct": true, "latency_ms": 4887, "system_prompt": null}
