@@ -22,12 +22,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from datasets import load_dataset
 
 from benchkit_for_harnesses.archive import make_archive_path, finalize_archive_path
-from benchkit_for_harnesses.harnesses.runner import HarnessType, run_harness
+from benchkit_for_harnesses.harnesses.runner import run_harness
 from benchkit_for_harnesses.results import load_jsonl
 
 from .checkers import evaluate_response
@@ -82,7 +82,7 @@ def run_benchmark(
                 latency_ms = 100
             else:
                 response, latency_ms = run_harness(
-                    harness=cast(HarnessType, harness),
+                    harness=harness,
                     model=model,
                     prompt=prompt,
                     system_prompt=system_prompt,

@@ -36,8 +36,7 @@ Examples:
         "--harness",
         "-H",
         default="ohp",
-        choices=["ohp", "punkin"],
-        help="Harness to use (default: ohp)",
+        help="Harness CLI to use (ohp, punkin, opencode, monopi, omp, or any CLI in PATH)",
     )
     parser.add_argument(
         "--model",

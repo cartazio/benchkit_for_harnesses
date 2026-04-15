@@ -11,14 +11,14 @@ import os
 import subprocess
 import tempfile
 from datetime import datetime, timezone
-from typing import Literal
 
-
-HarnessType = Literal["ohp", "punkin"]
+# Known harness CLIs. Any CLI binary accepting -p --no-session --model is valid.
+KNOWN_HARNESSES = ("ohp", "punkin", "opencode", "monopi", "omp")
+HarnessType = str
 
 
 def run_harness(
-    harness: HarnessType,
+    harness: str,
     model: str,
     prompt: str,
     system_prompt: str | None = None,
