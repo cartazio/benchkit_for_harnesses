@@ -82,17 +82,20 @@ def run_benchmark_batch(
             # BABILong: config=length, split=task
             dataset = load_dataset(config.hf_path, length, split=task)  # type: ignore[assignment]
         else:
-            # InfiniteBench: split=task only
-            dataset = load_dataset(config.hf_path, split=task)  # type: ignore[assignment]
+            # InfiniteBench: split=task, use streaming to avoid broken splits
+            dataset = load_dataset(config.hf_path, split=task, streaming=True)  # type: ignore[assignment]
     else:
         dataset = load_dataset(config.hf_path, split=config.default_split)
 
-    # Filter by limit
-    if limit:
+    # Filter by limit and iterate
+    # Streaming datasets don't support .select() or len()
+    is_streaming = hasattr(dataset, '__iter__') and not hasattr(dataset, 'select')
+    if not is_streaming and limit:
         dataset = dataset.select(range(min(limit, len(dataset))))
 
-    # Run benchmark
     for idx, item in enumerate(dataset):
+        if limit and idx >= limit:
+            break
         prompt, target = config.format_fn(item)
         response, latency_ms = run_harness(
             harness=harness,
