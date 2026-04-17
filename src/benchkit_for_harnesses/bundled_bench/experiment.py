@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
-"""
-bundled-bench experiment runner.
+"""bundled-bench experiment runner: matrix of (model, bundle_size, condition) trials.
 
-Usage:
-  # Dry run with synthetic questions (no API calls)
-  python -m benchkit_for_harnesses.bundled_bench.run --dry-run
+Primary entry point is the unified CLI: ``benchkit bundled …``.
+Direct invocation ``python -m benchkit_for_harnesses.bundled_bench.experiment``
+also works for developers running out of the source tree.
 
-  # Run core experiment (7-8B base/instruct pairs)
-  python -m benchkit_for_harnesses.bundled_bench.run --preset core --bundle-sizes 1,3,5,7
-
-  # Run specific model with specific condition
-  python -m benchkit_for_harnesses.bundled_bench.run --model llama-3.1-8b-instruct --condition full --bundle-sizes 1,5
-
-  # Coherence validation: test base models at N=1,3
-  python -m benchkit_for_harnesses.bundled_bench.run --preset core --base-only --bundle-sizes 1,3
-
-  # Full experiment
-  python -m benchkit_for_harnesses.bundled_bench.run --preset full --bundle-sizes 1,3,5,7,10
+Usage (via benchkit):
+  benchkit bundled --dry-run                                  # preview matrix
+  benchkit bundled --preset core --bundle-sizes 1,3,5,7       # core experiment
+  benchkit bundled --model llama-3.1-8b-instruct --bundle-sizes 1,5
+  benchkit bundled --preset core --base-only --bundle-sizes 1,3   # base coherence
+  benchkit bundled --preset full --bundle-sizes 1,3,5,7,10    # full matrix
 """
 
 from __future__ import annotations
@@ -73,7 +67,7 @@ def build_configs(
     return configs
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="bundled-bench experiment runner")
     parser.add_argument(
         "--preset",
@@ -146,7 +140,7 @@ def main():
         help="Max concurrent API calls",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Parse bundle sizes and conditions
     bundle_sizes = [int(x) for x in args.bundle_sizes.split(",")]
@@ -207,7 +201,7 @@ def main():
 
     if args.dry_run:
         print(f"\n[DRY RUN] Would execute {len(configs) * args.n_bundles} API calls.")
-        return
+        return 0
 
     # Run experiment
     output_path = Path(args.output)
@@ -278,7 +272,9 @@ def main():
         )
 
     print(f"\nResults saved to: {output_path}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    sys.exit(main())
