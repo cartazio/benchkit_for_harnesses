@@ -1,5 +1,5 @@
-"""CLI harness runners."""
+"""CLI harness dispatch — adapter pattern for ohp/punkin/claude/codex/..."""
 
-from .runner import run_harness, HarnessType
+from .dispatch import HarnessType, run_harness
 
-__all__ = ["run_harness", "HarnessType"]
+__all__ = ["HarnessType", "run_harness"]
