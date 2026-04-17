@@ -1,125 +1,148 @@
 # BenchKit for Harnesses
 
-Unified benchmarking toolkit for **ohp** and **punkin** CLI harnesses.
+Unified benchmarking toolkit for CLI coding-agent harnesses. Runs standard
+long-context benchmarks (BABILong, InfiniteBench, LongBench-v2) and custom
+experiments (IFEval+, bundled-bench) against any compatible CLI.
 
-## Features
+## Supported harnesses
 
-- **Multi-benchmark support**: BABILong, InfiniteBench, LongBench-v2
-- **Flexible harness selection**: Run against ohp or punkin CLI
-- **Long-context evaluation**: Support for up to 128k context windows
-- **Archive format output**: Versioned, timestamped, content-hashed JSONL results
-- **Modern Python packaging**: pyproject.toml, type-safe, pytest-ready
+| Harness | Invocation shape | Auth / config |
+|---|---|---|
+| `ohp`, `punkin`, `opencode`, `monopi`, `omp` | `BIN -p --no-session --model X @promptfile` | as per harness |
+| `claude` (Claude Code) | `claude -p --model X --no-session-persistence` with stdin | `claude login` or `ANTHROPIC_API_KEY` |
+| `codex` (OpenAI Codex) | `codex exec -m X -` with stdin, extracts `--output-last-message` | `codex login` |
 
-## Installation
+Adding a new harness = one adapter function in `src/benchkit_for_harnesses/harnesses/dispatch.py`. See [`docs/harnesses.md`](docs/harnesses.md).
+
+## Install
+
+Using `uv` (recommended):
 
 ```bash
 cd ~/local_dev/dynamic_science/benchkit_for_harnesses
-pip install -e .
+uv sync
 ```
 
-Or with dev dependencies:
+Or pip:
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-## Usage
-
-### CLI
+Either installs the `benchkit` console script. If you prefer not to activate the venv (or not to install at all), every command below can be prefixed with `uv run` and executed from the repo root:
 
 ```bash
-# Run BABILong benchmark with ohp harness
-benchkit --benchmark babilong --harness ohp --model claude-sonnet-4
-
-# Run specific task with limit
-benchkit --benchmark infinitebench --task passkey --limit 10 --harness punkin
-
-# Save results to directory
-benchkit --benchmark longbenchv2 --output ./results/ --harness ohp
-
-# With custom system prompt
-benchkit --benchmark babilong --harness ohp --model sonnet --system-prompt "Be concise."
+uv run benchkit probe --harness claude --model sonnet
+uv run python -m benchkit_for_harnesses.ifeval.experiment run -c heavy -m sonnet -n 50
 ```
 
-### Python API
+## Quick start
+
+```bash
+# Sanity-check a harness+model pair (one trivial prompt)
+benchkit probe --harness claude --model sonnet
+
+# Enumerate what's available
+benchkit list benchmarks
+benchkit list harnesses
+
+# BABILong qa1 at 0k context, 10 items, against punkin
+benchkit run --benchmark babilong --task qa1 --length 0k --limit 10 \
+    --harness punkin --model anthropic/claude-opus-4-6 \
+    --output ./results
+
+# InfiniteBench passkey, 10 items, against Claude Code
+benchkit run --benchmark infinitebench --task passkey --limit 10 \
+    --harness claude --model sonnet \
+    --output ./results
+
+# LongBench-v2 multi-choice, 10 items, against Codex
+benchkit run --benchmark longbenchv2 --limit 10 \
+    --harness codex --model gpt-5.3-codex-spark \
+    --output ./results
+
+# Sub-experiments — remaining args forward to the sub-experiment CLI
+benchkit ifeval run --condition heavy -m sonnet -n 50 -o ./results
+benchkit ifeval compare baseline.jsonl heavy.jsonl
+benchkit bundled --preset core --bundle-sizes 1,3,5 --dry-run
+```
+
+Validation is upfront — omitting `--task`/`--length` on benchmarks that
+require them produces an actionable error listing available values.
+
+## Benchmarks
+
+| Name | Tasks | Lengths | Eval | Notes |
+|---|---|---|---|---|
+| `babilong` | qa1–qa10 | 0k–128k | loose bracket | Synthetic short-answer QA |
+| `infinitebench` | passkey, kv_retrieval, number_string, code_run, code_debug, math_find, longdialogue_qa_eng, longbook_qa_eng | n/a | loose bracket | Streamed, some pipe-target multi-answer |
+| `longbenchv2` | (single-split) | n/a | **strict** bracket | Multiple-choice A/B/C/D — strict to kill single-letter substring false positives |
+
+All benchmarks use the **answer-bracket protocol**: the model wraps its
+final answer in `{[{[ … ]}]}` markers. See [`docs/benchmarks.md`](docs/benchmarks.md)
+for details on the protocol, draft markers, and strict vs loose eval.
+
+## Python API
 
 ```python
 from benchkit_for_harnesses import run_benchmark_batch
 
 results, output_path = run_benchmark_batch(
     benchmark_name="babilong",
-    harness="ohp",
-    model="claude-sonnet-4",
+    harness="claude",
+    model="sonnet",
     output_dir="./results",
+    task="qa1",
+    length="0k",
     limit=100,
 )
 
-for result in results:
-    print(f"Item {result.idx}: {result.correct} in {result.latency_ms}ms")
+for r in results:
+    print(f"idx={r.idx} correct={r.correct} latency={r.latency_ms}ms")
+print(f"Archive: {output_path}")
 ```
 
-## Benchmarks
+## Persistence model
 
-### BABILong
-- **Tasks**: qa1-qa10 (10 synthetic QA tasks)
-- **Context**: 0k-128k tokens
-- **Evaluation**: Contains-based matching
+Two layers, each with a different granularity:
 
-### InfiniteBench
-- **Tasks**: passkey, kv_retrieval, number_string, code_run, code_debug, math_find, longdialogue_qa_eng, longbook_qa_eng
-- **Evaluation**: Contains-based matching
+| Layer | Granularity | Location | Contents |
+|---|---|---|---|
+| **Archive** | one file per `benchkit run` invocation | `$BENCHKIT_HOME/runs/{desc}_v{n}_{ts}NYC_{hash}.jsonl` | Per-item records (prompt, target, response, correct, latency). Content-hashed filename — self-certifying. |
+| **Ledger** | one line per `benchkit` invocation (any subcommand) | `$BENCHKIT_HOME/ledger.jsonl` | Invocation metadata: timestamp, argv, exit code, command-specific summary (accuracy, output path, error message). |
 
-### LongBench-v2
-- **Format**: Multi-choice QA
-- **Evaluation**: Letter-based matching (A, B, C, D)
+`$BENCHKIT_HOME` defaults to `~/.benchkit/`; override via env var.
+`benchkit run` auto-persists archives to the runs dir when `--output` is omitted — no accidental data loss.
+`benchkit log -n 20` tails the ledger for a quick history view.
 
-## Output Format
+See [`docs/output.md`](docs/output.md) for archive filename semantics, full JSONL schemas per subcommand, and the `ArchiveWriter` context-manager API for custom pipelines.
 
-Results are saved as **Carter archive format** JSONL:
+## Extra tools
 
-```
-{desc}_v{n}_{YYYYMMDDTHHMMSS}NYC_{hash}.jsonl
-```
+Two sub-experiments live in the same package:
 
-Each line is a JSON object:
+- **IFEval+** (`benchkit ifeval …`) — measures instruction-following
+  degradation under heavy system prompts.
+- **bundled-bench** (`benchkit bundled …`) — measures alignment-tax on
+  multi-question prompts (base vs instruct).
 
-```json
-{
-  "idx": 0,
-  "benchmark": "babilong",
-  "task": "qa1",
-  "length": "4k",
-  "model": "claude-sonnet-4",
-  "harness": "ohp",
-  "prompt_chars": 2048,
-  "target": "answer",
-  "response": "model response",
-  "correct": true,
-  "latency_ms": 1234,
-  "system_prompt": null
-}
-```
+Both stream to the same archive format.
 
 ## Development
 
-### Type Checking
-
 ```bash
-pyright src/
+.venv/bin/pytest tests/           # run tests
+.venv/bin/pyright                 # strict type check (src + tests)
 ```
 
-### Testing
+Conventions: pyright strict mode (see `pyproject.toml`), pytest.
 
-```bash
-pytest tests/
-```
+## Further reading
 
-### Code Quality
-
-```bash
-black src/ tests/
-ruff check src/ tests/
-```
+- [`docs/architecture.md`](docs/architecture.md) — module map, data flow
+- [`docs/harnesses.md`](docs/harnesses.md) — adapter pattern, adding a harness
+- [`docs/benchmarks.md`](docs/benchmarks.md) — bracket protocol, eval modes
+- [`docs/output.md`](docs/output.md) — archive format, JSONL schema
 
 ## Author
 
