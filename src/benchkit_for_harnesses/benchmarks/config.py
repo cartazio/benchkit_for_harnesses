@@ -41,7 +41,7 @@ def format_babilong(item: Mapping[str, object]) -> tuple[str, str]:
     input_text = item.get("input", "")
     question = item.get("question", "")
     target_raw = item.get("target", "")
-    prompt = f"{input_text}\n\nQuestion: {question}\nAnswer (wrap in {{[{{[ and ]}}]}}):"
+    prompt = f"{input_text}\n\nQuestion: {question}\n\n{ANSWER_INSTRUCTION}\n\nAnswer:"
     target = str(target_raw).strip()
     return prompt, target
 
@@ -50,7 +50,7 @@ def format_infinitebench(item: Mapping[str, object]) -> tuple[str, str]:
     """Format InfiniteBench item to (prompt, target)."""
     context = item.get("context", "")
     input_text = item.get("input", "")
-    prompt = f"{context}\n\n{input_text}\n\nProvide your answer wrapped in {{[{{[ and ]}}]}} markers."
+    prompt = f"{context}\n\n{input_text}\n\n{ANSWER_INSTRUCTION}"
     answer_raw: object = item.get("answer", "")
     if isinstance(answer_raw, list) and answer_raw:
         # Multiple valid answers — join with | for eval_bracketed
@@ -69,8 +69,9 @@ def format_longbenchv2(item: Mapping[str, object]) -> tuple[str, str]:
         f"A) {item.get('choice_A', '')}\n"
         f"B) {item.get('choice_B', '')}\n"
         f"C) {item.get('choice_C', '')}\n"
-        f"D) {item.get('choice_D', '')}\n"
-        f"Answer with just the letter (A, B, C, or D) wrapped in {{[{{[ and ]}}]}} markers:"
+        f"D) {item.get('choice_D', '')}\n\n"
+        f"{ANSWER_INSTRUCTION}\n\n"
+        f"Answer with just the letter (A, B, C, or D):"
     )
     target = str(item.get("answer", "")).strip().upper()
     return prompt, target
@@ -79,6 +80,7 @@ def format_longbenchv2(item: Mapping[str, object]) -> tuple[str, str]:
 # --- Answer bracket extraction (shared module) ---
 
 from benchkit_for_harnesses.brackets import (
+    ANSWER_INSTRUCTION,
     eval_bracketed,
 )
 

@@ -6,6 +6,18 @@ import re
 
 ANSWER_BRACKET_RE = re.compile(r'\{\[\{\[\s*(.*?)\s*\]\}\]\}', re.DOTALL)
 
+# Draft markers: for intermediate reasoning that should NOT be scored.
+# Visually distinct from answer brackets so extraction is unambiguous.
+DRAFT_OPEN = "(_("
+DRAFT_CLOSE = ")_)"
+
+ANSWER_INSTRUCTION = (
+    "Wrap your FINAL answer in {[{[ and ]}]} markers — exactly one pair, "
+    "at the end of your response. "
+    "If you show intermediate drafts or reasoning steps, wrap those in "
+    f"{DRAFT_OPEN} and {DRAFT_CLOSE} so they are not confused with the final answer."
+)
+
 
 def extract_bracketed_answer(text: str) -> str | None:
     """Extract the LAST {[{[ ... ]}]} bracketed answer from text.
