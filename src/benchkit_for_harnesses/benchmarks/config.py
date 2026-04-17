@@ -85,6 +85,14 @@ from benchkit_for_harnesses.brackets import (
 )
 
 
+def _eval_bracketed_strict(response: str, target: str) -> bool:
+    """Strict evaluation for discrete-target benchmarks (MC letter A/B/C/D).
+
+    Without strict mode, one-letter substring matches ("a" ⊆ "answer") cause
+    false positives on LongBench-v2 style targets.
+    """
+    return eval_bracketed(response, target, strict=True)
+
 # Registry
 BENCHMARKS: dict[str, BenchmarkConfig] = {
     "babilong": BenchmarkConfig(
@@ -117,7 +125,7 @@ BENCHMARKS: dict[str, BenchmarkConfig] = {
         name="longbenchv2",
         hf_path="zai-org/LongBench-v2",
         format_fn=format_longbenchv2,
-        eval_fn=eval_bracketed,
+        eval_fn=_eval_bracketed_strict,
         default_split="train",
     ),
 }

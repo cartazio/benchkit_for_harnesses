@@ -1,25 +1,27 @@
-"""
-bundled-bench: Measuring instruction-tuning policy tax on multi-question prompts.
+"""bundled-bench: a generic shape for multi-question prompt studies.
 
-Hypothesis: instruction tuning introduces a default policy that degrades
-multi-question accuracy. Targeted system prompt instructions recover capability
-toward (or beyond) base model performance.
+**Shape, not hypothesis.** The module provides:
 
-Experimental matrix:
-  A: base model, no system prompt
-  B: instruct model, no system prompt
-  C: instruct model, minimal system prompt
-  D: instruct model, full harness system prompt
+- `Question` + `Bundle` dataclasses: N independent questions packed together
+- `make_bundles(questions, bundle_size, n_bundles, seed)`: deterministic partitioning
+- `format_bundle_prompt(bundle)`: renders a prompt with bracket-protocol answer slots
+- `parse_responses(raw_output, bundle)`: extracts per-position answers and scores each
+- `BundleResult` / `QuestionResult`: per-bundle + per-position records
+- `summarize_results`: aggregate by (model, is_base, condition, bundle_size), including positional accuracy
 
-Independent variables:
-  - model (base vs instruct variants)
-  - bundle_size N (1, 3, 5, 7, 10)
-  - system_prompt_condition (none, minimal, full)
+The loop is transport-agnostic — any `AsyncResponder` works. The current
+`runner.py` wires `api_model_responder` (chat for instruct, completion for base)
+because the original experiment needed base models and CLI harnesses don't
+expose completion endpoints.
 
-Dependent variable:
-  - per-question accuracy within bundle
-  - positional accuracy (does position in bundle affect correctness?)
-  - completion rate (did the model attempt all N questions?)
+Originally written to study instruction-tuning policy tax: does bundling N
+questions into one prompt degrade instruct-model accuracy relative to the
+same-family base model, and does a heavy system prompt recover capability?
+The matrix in `experiment.py` (model x bundle_size x system-prompt condition)
+is the scaffold for that study. The same scaffold answers any question
+phrased as "how does model X degrade when N independent sub-prompts are
+compressed into one?" — swap the responder, the question loader, or the
+conditions list.
 """
 
 from __future__ import annotations

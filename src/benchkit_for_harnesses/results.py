@@ -32,7 +32,4 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return results
 
 
-def stream_jsonl(record: dict[str, Any], f: Any) -> None:
-    """Write a single record to an open JSONL file handle and flush."""
-    f.write(json.dumps(record) + "\n")
-    f.flush()
+

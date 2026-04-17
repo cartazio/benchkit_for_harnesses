@@ -1,24 +1,28 @@
-"""Benchmark orchestration and batch execution."""
+"""Standard benchmark batch runner (BABILong, InfiniteBench, LongBench-v2).
+
+Thin orchestrator on top of :func:`benchkit_for_harnesses.core.run_items`:
+validate args, load the dataset, delegate the loop.
+"""
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from datasets import load_dataset  # type: ignore[import-untyped]
 
 from .benchmarks.config import BENCHMARKS
-from .harnesses.runner import run_harness, HarnessType
-from .archive import make_archive_path, finalize_archive_path
+from .core import run_items
+from .harnesses.dispatch import HarnessType
+from .responders import harness_responder
 
-__all__ = ["run_benchmark_batch", "BenchmarkResult"]
+__all__ = ["BenchmarkResult", "run_benchmark_batch"]
 
 
 @dataclass
 class BenchmarkResult:
-    """Single benchmark result."""
+    """Single benchmark result record."""
 
     idx: int
     benchmark: str
@@ -34,8 +38,64 @@ class BenchmarkResult:
     system_prompt: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
         return asdict(self)
+
+
+def _validate_args(
+    benchmark_name: str, task: str | None, length: str | None
+) -> None:
+    """Fail fast with actionable messages before any dataset I/O."""
+    if benchmark_name not in BENCHMARKS:
+        raise ValueError(
+            f"Unknown benchmark: {benchmark_name}. "
+            f"Available: {', '.join(BENCHMARKS.keys())}"
+        )
+    config = BENCHMARKS[benchmark_name]
+
+    if config.split_is_task and task is None:
+        available = ", ".join(config.tasks) if config.tasks else "(none registered)"
+        raise ValueError(
+            f"Benchmark '{benchmark_name}' requires --task (splits are tasks). "
+            f"Available tasks: {available}"
+        )
+
+    if task is not None and config.tasks and task not in config.tasks:
+        raise ValueError(
+            f"Unknown task for '{benchmark_name}': {task}. "
+            f"Available: {', '.join(config.tasks)}"
+        )
+
+    if config.lengths and length is None:
+        raise ValueError(
+            f"Benchmark '{benchmark_name}' requires --length. "
+            f"Available lengths: {', '.join(config.lengths)}"
+        )
+
+    if length is not None and config.lengths and length not in config.lengths:
+        raise ValueError(
+            f"Unknown length for '{benchmark_name}': {length}. "
+            f"Available: {', '.join(config.lengths)}"
+        )
+
+
+def _load_dataset_for(config: Any, task: str | None, length: str | None) -> Any:
+    """Load the HF dataset with the right (config, split) permutation."""
+    if config.split_is_task and task:
+        if config.lengths and length:
+            # BABILong: config=length, split=task
+            return load_dataset(config.hf_path, length, split=task)
+        # InfiniteBench: split=task, streaming avoids broken splits
+        return load_dataset(config.hf_path, split=task, streaming=True)
+    return load_dataset(config.hf_path, split=config.default_split)
+
+
+def _apply_hf_limit(dataset: Any, limit: int | None) -> Any:
+    """Apply HF .select() for non-streaming datasets; streaming is handled
+    by the core loop's own limit."""
+    is_streaming = hasattr(dataset, "__iter__") and not hasattr(dataset, "select")
+    if not is_streaming and limit:
+        return dataset.select(range(min(limit, len(dataset))))
+    return dataset
 
 
 def run_benchmark_batch(
@@ -48,64 +108,29 @@ def run_benchmark_batch(
     length: str | None = None,
     system_prompt: str | None = None,
 ) -> tuple[list[BenchmarkResult], Path | None]:
+    """Run a benchmark batch against a harness.
+
+    Returns (results list, output archive path or None).
     """
-    Run benchmark batch against a harness.
-
-    Args:
-        benchmark_name: Benchmark to run (from BENCHMARKS registry)
-        harness: Harness to use (ohp, punkin)
-        model: Model identifier
-        output_dir: Output directory for JSONL results (if None, no output)
-        limit: Max items to run (None = all)
-        task: Specific task to run (for multi-task benchmarks)
-        length: Specific length to run (for long-context benchmarks)
-        system_prompt: System prompt override
-
-    Returns:
-        Tuple of (results list, output_file path or None)
-
-    Raises:
-        ValueError: If benchmark_name not in registry
-    """
-    if benchmark_name not in BENCHMARKS:
-        raise ValueError(
-            f"Unknown benchmark: {benchmark_name}. "
-            f"Available: {', '.join(BENCHMARKS.keys())}"
-        )
-
+    _validate_args(benchmark_name, task, length)
     config = BENCHMARKS[benchmark_name]
-    results: list[BenchmarkResult] = []
+    dataset = _apply_hf_limit(_load_dataset_for(config, task, length), limit)
 
-    # Load dataset
-    if config.split_is_task and task:
-        if config.lengths and length:
-            # BABILong: config=length, split=task
-            dataset = load_dataset(config.hf_path, length, split=task)  # type: ignore[assignment]
-        else:
-            # InfiniteBench: split=task, use streaming to avoid broken splits
-            dataset = load_dataset(config.hf_path, split=task, streaming=True)  # type: ignore[assignment]
-    else:
-        dataset = load_dataset(config.hf_path, split=config.default_split)
+    responder = harness_responder(harness, model)
+    description = f"{benchmark_name}_{harness}_{model.replace('/', '_')}"
 
-    # Filter by limit and iterate
-    # Streaming datasets don't support .select() or len()
-    is_streaming = hasattr(dataset, '__iter__') and not hasattr(dataset, 'select')
-    if not is_streaming and limit:
-        dataset = dataset.select(range(min(limit, len(dataset))))
+    def _format(item: Mapping[str, object]) -> tuple[str, str]:
+        return config.format_fn(item)
 
-    for idx, item in enumerate(dataset):
-        if limit and idx >= limit:
-            break
-        prompt, target = config.format_fn(item)
-        response, latency_ms = run_harness(
-            harness=harness,
-            model=model,
-            prompt=prompt,
-            system_prompt=system_prompt,
-        )
-        correct = config.eval_fn(response, target)
-
-        result = BenchmarkResult(
+    def _build(
+        idx: int,
+        _item: Mapping[str, object],
+        prompt: str,
+        target: str,
+        response: str,
+        latency_ms: int,
+    ) -> BenchmarkResult:
+        return BenchmarkResult(
             idx=idx,
             benchmark=benchmark_name,
             task=task or "default",
@@ -115,28 +140,18 @@ def run_benchmark_batch(
             prompt_chars=len(prompt),
             target=target,
             response=response,
-            correct=correct,
+            correct=config.eval_fn(response, target),
             latency_ms=latency_ms,
             system_prompt=system_prompt,
         )
-        results.append(result)
 
-    # Write output if requested
-    output_path = None
-    if output_dir:
-        output_dir = Path(output_dir)
-        output_path = make_archive_path(
-            output_dir,
-            f"{benchmark_name}_{harness}_{model.replace('/', '_')}",
-            extension="jsonl",
-        )
-
-        with open(output_path, "w") as f:
-            for result in results:
-                f.write(json.dumps(result.to_dict()) + "\n")
-
-        # Finalize with actual content hash
-        content_bytes = output_path.read_bytes()
-        output_path = finalize_archive_path(content_bytes, output_path)
-
-    return results, output_path
+    return run_items(
+        items=dataset,
+        responder=responder,
+        format_fn=_format,
+        build_record=_build,
+        description=description,
+        output_dir=output_dir,
+        system_prompt=system_prompt,
+        limit=limit,
+    )
