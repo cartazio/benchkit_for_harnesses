@@ -8,9 +8,15 @@ ANSWER_BRACKET_RE = re.compile(r'\{\[\{\[\s*(.*?)\s*\]\}\]\}', re.DOTALL)
 
 
 def extract_bracketed_answer(text: str) -> str | None:
-    """Extract first {[{[ ... ]}]} bracketed answer from text."""
-    m = ANSWER_BRACKET_RE.search(text)
-    return m.group(1).strip() if m else None
+    """Extract the LAST {[{[ ... ]}]} bracketed answer from text.
+
+    Prompt says "wrap your final answer" — if the model emits multiple bracket
+    pairs (e.g. mid-reasoning drafts before the final), take the last one.
+    Also handles leaked visible reasoning without --print-thoughts: intermediate
+    answers appear earlier in the stream, final answer comes last.
+    """
+    matches = ANSWER_BRACKET_RE.findall(text)
+    return matches[-1].strip() if matches else None
 
 
 def extract_bracketed_answers(text: str) -> list[str]:
