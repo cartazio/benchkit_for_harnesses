@@ -76,6 +76,12 @@ ignore = ["E501"]  # line too long, handled by black
 known-first-party = ["benchkit_for_harnesses"]
 
 [tool.pyright]
-include = ["src"]
+include = ["src", "tests"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.11"
 typeCheckingMode = "strict"
 stubPath = "typings"
+# `datasets` and `langdetect` ship no py.typed — we carry local stubs.
+# The source-exists warning is noise for stub-only third-party libs.
+reportMissingModuleSource = "none"
